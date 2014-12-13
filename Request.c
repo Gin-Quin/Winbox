@@ -417,6 +417,14 @@ void wRequest_SetMin(Widget *w, int min)
 }
 
 
+char *wRequest_GetTitle(Widget *w)
+{
+	if (!w) return NULL;
+	RequestArgs *args = w->args;
+	return args->str;
+}
+
+
 
 
 

@@ -170,12 +170,12 @@ int ActivateWindow(Widget *w)
 		
 		if (K_MENU() && lArgs) {
 			ok = OpenMenu(args->list, lArgs->menu, w->bounds.x+1, 0, 110, w->bounds.y + (args->title? 15:1));
+			if (ok != ACTION_CONTINUE) break;
 			if (!dynamicChild(args->widget)) SDL_Flip(scr);
 			while (K_ESC() || K_LEFT());
-			if (ok != ACTION_CONTINUE) break;
 		}
 		
-		else if (!K_ENTER() && any_key_pressed()) {
+		else if (any_key_pressed()) {
 			ok = wExecCallback(w, SIGNAL_KEY);
 			if (ok != ACTION_CONTINUE) break;
 			SDL_Flip(scr);
@@ -228,5 +228,13 @@ Widget *wWindow_GetList(Widget *w)
 	if (!w) return NULL;
 	WindowArgs *args = w->args;
 	return args->list;
+}
+
+
+char *wWindow_GetTitle(Widget *w)
+{
+	if (!w) return NULL;
+	WindowArgs *args = w->args;
+	return args->title;
 }
 

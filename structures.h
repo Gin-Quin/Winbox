@@ -31,6 +31,7 @@ enum SIGNALS {
 	SIGNAL_CLICK,
 	SIGNAL_KEY,
 	SIGNAL_LEAVE,
+	SIGNAL_ACTION2,
 };
 
 enum ACTIONS {
@@ -47,6 +48,13 @@ enum ARGS_TYPES {
 	WBACKG	= 8,
 	WTHEME	= 16,
 };
+
+
+typedef struct KEYWORD {
+	char str[32];
+	nSDL_Font *font;
+} KEYWORD;
+
 
 
 // - BACKGROUND -

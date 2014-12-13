@@ -3,62 +3,31 @@
 
 #include "Winbox.h"
 
-// thème par défaut allégé afin d'accélérer l'exécution
-static wTHEME *FastTheme()
-{
-	wTHEME *t = calloc(0, sizeof(wTHEME));
-	if (!t) return NULL;
-	
-	SDL_PixelFormat *fmt = SDL_GetVideoSurface()->format;
-	t->color1 = SDL_MapRGB(fmt, 239,251,247);
-	t->color2 = SDL_MapRGB(fmt, 24,48,90);
-	t->color3 = SDL_MapRGB(fmt, 66,113,206);
-	t->color4 = SDL_MapRGB(fmt, 33,16,33);
-	t->defbg = wBackgroundColor(SDL_MapRGB(fmt,99,162,181), SDL_MapRGB(fmt,214,235,235), BACKG_TRICOLOR);
-	t->font_index = NSDL_FONT_THIN;
-	t->font = nSDL_LoadFont(t->font_index, 33, 16, 33);
-	
-	t->button_bg = wBackgroundColor(SDL_MapRGB(fmt, 222,222,222), SDL_MapRGB(fmt, 16,52,132), BACKG_HGRAD);
-	t->button_bg_selected = wBackgroundColor(SDL_MapRGB(fmt, 0,24,33), SDL_MapRGB(fmt, 74,77,74), BACKG_HGRAD);
-	t->button_font = nSDL_LoadFont(NSDL_FONT_VGA, 0, 0, 0);
-	t->button_font_selected = nSDL_LoadFont(NSDL_FONT_VGA, 255, 255, 255);
-	
-	t->window_c1 = SDL_MapRGB(fmt, 0,0,0);
-	t->window_title_bg = wBackgroundColor(SDL_MapRGB(fmt, 0,0,0), SDL_MapRGB(fmt, 214,231,225), BACKG_HGRAD);
-	t->window_title_font = nSDL_LoadFont(NSDL_FONT_TINYTYPE, 255, 255, 255);
-	
-	t->dialog_bg1 = wBackgroundColor(SDL_MapRGB(fmt, 222,222,222), SDL_MapRGB(fmt, 57,162,132), BACKG_HGRAD);
-	t->dialog_bg2 = wBackgroundColor(SDL_MapRGB(fmt, 222,222,222), SDL_MapRGB(fmt, 148,73,82), BACKG_HGRAD);
-
-	t->text_c1 = SDL_MapRGB(fmt, 198,211,222);
-	t->request_c1 = SDL_MapRGB(fmt, 231,227,255);
-	t->request_c2 = SDL_MapRGB(fmt, 239,239,239);
-	t->request_c3 = SDL_MapRGB(fmt, 49,65,115);
-	t->request_f1 = nSDL_LoadFont(NSDL_FONT_THIN, 0, 8, 41);
-	t->request_f2 = nSDL_LoadFont(NSDL_FONT_TINYTYPE, 107, 146, 189);
-	return t;
-}
+extern wTHEME *Theme;
 
 
 void wShowMsg(const char *title, const char *msg)
 {
 	Widget *dialog = wDialog1(title, "OK");
-	Widget *text = wUnEditableText(msg, 4);
+	Widget *text = wText(msg, 4);
+	wText_SetUnEditable(text);
 	wSetHeight(dialog, 92);
 	wAddWidget(dialog, text);
-	wExecConstruct(dialog, FastTheme());
+	wExecConstruct(dialog);
 }
 
 
 int wInputMsg(const char *title, const char *msg)
 {
-	Widget *dialog = wDialog2(title, "Oui", "Non");
-	Widget *text = wUnEditableText(msg, 4);
+	Widget *dialog = wDialog2(title, "Yes", "No");
+	Widget *text = wText(msg, 4);
+	wText_SetUnEditable(text);
 	wSetHeight(dialog, 92);
 	wAddWidget(dialog, text);
 	
-	return wExecConstruct(dialog, FastTheme());
+	return wExecConstruct(dialog);
 }
+
 
 
 void wFastMsg(const char *msg, ...)
@@ -73,7 +42,7 @@ void wFastMsg(const char *msg, ...)
 	va_start(v, msg);
 	int W = 220;
 	SDL_Surface *scr = SDL_GetVideoSurface();
-	
+
 	
 	/* 1-- On remplace les %u, %i, %c et %s */
 	while ((p2 = strchr(p1, '%'))) {
@@ -243,9 +212,9 @@ void wFastMsg(const char *msg, ...)
 	SDL_SetClipRect(scr, &r);
 	
 	// on dessine le rectangle
-	DrawFillRect(scr, &r, RGB(250,190,146));
-	DrawRect(scr, &r, RGB(136,0,21));
-	DrawRectXY(scr, r.x+1, r.y+1, r.w-2, r.h-2, RGB(207,22,22));
+	DrawFillRect(scr, &r, RGB(219,215,232));
+	DrawRect(scr, &r, RGB(43,45,57));
+	DrawRectXY(scr, r.x+1, r.y+1, r.w-2, r.h-2, RGB(100,103,130));
 	
 	
 	// on affiche les lignes de texte
@@ -305,7 +274,7 @@ wMENU *wPopupXY(wMENU *m, int x, int y, int *n)
 	
 	wConnect(list, CB_Click);
 	
-	ok = wActivateConstruct(list, NULL)-1;
+	ok = wActivateConstruct(list)-1;
 	if (!ok || b) r = wList_GetCurrentItem(list, n);
 	wCloseConstruct(list);
 	return r;
@@ -315,11 +284,13 @@ wMENU *wPopupXY(wMENU *m, int x, int y, int *n)
 
 
 
-int wOpenBox(const char *path, const char *pattern, char *fileName)
+static int wOpenBox_(const char *path, const char *pattern, char *fileName_output, int mode)
 {
 	int ok;
-	nSDL_Font *font = nSDL_LoadFont(NSDL_FONT_VGA, 10, 32, 70);
+	nSDL_Font *font = nSDL_LoadFont(NSDL_FONT_VGA, Red(Theme->color4), Green(Theme->color4), Blue(Theme->color4));
 	BOOL b = pattern && pattern[0] && strcmp(pattern, "*");
+	char fileName[512];
+	strcpy(fileName, fileName_output);
 		
 	// Déclaration des widgets
 	Widget *mainWidget = wDialog2("Open", "Open", "Cancel");
@@ -371,26 +342,65 @@ int wOpenBox(const char *path, const char *pattern, char *fileName)
 	
 	
 	// on active la construction
-	wDrawConstruct(mainWidget, NULL);
+	wDrawConstruct(mainWidget);
 	CB_ChangeLabel(explorer, SIGNAL_ACTION);
-	ok = wActivateConstruct(mainWidget, NULL);
+  ACTIVATE:
+	ok = wActivateConstruct(mainWidget);
+	
 	if (ok) {
+		wMENU *menu = wList_GetCurrentItem(explorer, NULL);
+		if (!menu || !menu->nItems) {
+			wFastMsg("No path selected.");
+			goto ACTIVATE;
+		}
+		
 		wList_GetCurrentPath(explorer, fileName);
 		if (fileName[0] && fileName[strlen(fileName)-1] != '/') strcat(fileName, "/");
 		strcat(fileName, wList_GetCurrentStr(explorer));
+		
+		if (isFile(fileName) && mode == 1) {
+			wFastMsg("A folder path is expected.");
+			goto ACTIVATE;
+		}
+		if (isFolder(fileName) && mode == 0) {
+			wFastMsg("A file path is expected.");
+			goto ACTIVATE;
+		}
+		
+		strcpy(fileName_output, fileName);
 	}
-	else fileName[0] = 0;
 	
 	wCloseConstruct(mainWidget);
 	return ok;
 }
 
 
+// ouvre uniquement un fichier
+int wOpenBox(const char *path, const char *pattern, char *fileName_output)
+{
+	return wOpenBox_(path, pattern, fileName_output, 0);
+}
 
-int wSaveBox(const char *path, char *fileName)
+// ouvre uniquement un dossier
+int wOpenBox2(const char *path, const char *pattern, char *fileName_output)
+{
+	return wOpenBox_(path, pattern, fileName_output, 1);
+}
+
+// ouvre un fichier ou un dossier
+int wOpenBox3(const char *path, const char *pattern, char *fileName_output)
+{
+	return wOpenBox_(path, pattern, fileName_output, 2);
+}
+
+
+
+int wSaveBox(const char *path, char *fileName_output)
 {
 	int ok;
-	nSDL_Font *font = nSDL_LoadFont(NSDL_FONT_VGA, 10, 32, 70);
+	nSDL_Font *font = nSDL_LoadFont(NSDL_FONT_VGA, Red(Theme->color4), Green(Theme->color4), Blue(Theme->color4));
+	char fileName[512];
+	strcpy(fileName, fileName_output);
 	
 	// Déclaration des widgets
 	Widget *mainWidget = wDialog2("Save", "Save", "Cancel");
@@ -452,13 +462,15 @@ int wSaveBox(const char *path, char *fileName)
 	
 	
 	// on active le construct
-	wDrawConstruct(mainWidget, NULL);
+	wDrawConstruct(mainWidget);
 	CB_Explorer(explorer, SIGNAL_ACTION);  // on définit le texte du label
-	ok = wActivateConstruct(mainWidget, NULL);
+	ok = wActivateConstruct(mainWidget);
 	if (ok) {
 		wList_GetCurrentPath(explorer, fileName);
 		if (fileName[0] && fileName[strlen(fileName)-1] != '/') strcat(fileName, "/");
 		strcat(fileName, wRequest_GetText(req));
+		
+		strcpy(fileName_output, fileName);
 	}
 	
 	wCloseConstruct(mainWidget);

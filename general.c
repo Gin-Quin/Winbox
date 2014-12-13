@@ -1,6 +1,7 @@
 #include <os.h>
 #include <SDL\SDL.h>
 #include "Winbox\Winbox.h"
+#include "nSDL_CustomFonts.h"
 
 
 // TRANSFORMATIONS DE COULEURS --
@@ -67,12 +68,13 @@ Uint32 ColorToGray(Uint32 color)
 
 Uint32 Contrasted(Uint32 color, Uint8 value)
 {
-	int x;
 	Uint8 c[3];
 	SDL_GetRGB(color, SDL_GetVideoSurface()->format, c, c+1, c+2);
+/*  WHAT IS THIS ???????
 	for (x=1; x<3; x++)
 		c[x] = c[x] < 128? c[x]-127 : c[x]+127;
-	if ((c[0]+c[1]+c[2])/3 > 127)
+*/
+		if ((c[0]+c[1]+c[2])/3 > 127)
 		return Darker(color, value);
 	return Lighter(color, value);
 }
@@ -209,7 +211,7 @@ void DrawClippedStr(SDL_Surface *s, nSDL_Font *f, int x, int y, const char *str)
 	SDL_GetClipRect(s, &clip);
 	
 	if (x >= clip.x && y >= clip.y) {
-		nSDL_DrawString(s, f, x, y, str);
+		nSDL_DrawStringCF(s, f, x, y, str);
 		return;
 	}
 	
@@ -218,7 +220,7 @@ void DrawClippedStr(SDL_Surface *s, nSDL_Font *f, int x, int y, const char *str)
 	SDL_Surface *s2 = SDL_CreateRGBSurface(SDL_SWSURFACE, w, h, 16, 0, 0, 0, 0);
 	
 	DrawFillRect(s2, NULL, SDL_MapRGB(s->format, 255, 0, 0));
-	nSDL_DrawString(s2, f, 0, 0, str);
+	nSDL_DrawStringCF(s2, f, 0, 0, str);
 	SDL_SetColorKey(s2, SDL_SRCCOLORKEY, SDL_MapRGB(s->format, 255, 0, 0));
 	DrawSurface(s2, NULL, s, &(SDL_Rect) {x, y, w, h});
 	SDL_FreeSurface(s2);

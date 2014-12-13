@@ -26,5 +26,8 @@ BOOL K_PUNC();
 BOOL K_PARAGRAPH();
 
 
+// Fonction nouvelle génération !!
+void K_getChar(char *keyList);
+
 #endif
 

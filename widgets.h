@@ -7,15 +7,16 @@
 
 // Les constructs
 wCONSTRUCT *wNewConstruct(Widget *w);
-int wActivateConstruct(Widget *w, wTHEME *theme);
-int wExecConstruct(Widget *w, wTHEME *theme);
-void wDrawConstruct(Widget *w, wTHEME *theme);
+int wActivateConstruct(Widget *w);
+int wExecConstruct(Widget *w);
+void wDrawConstruct(Widget *w);
 void wCloseConstruct(Widget *w);
 void wConstruct_SaveImage(wCONSTRUCT *construct);
 void wConstruct_DontSaveImage(wCONSTRUCT *construct);
 void wMoveConstruct(Widget *wid, int x, int y, int w, int h);
 void wMoveConstructR(Widget *wid, SDL_Rect *r);
 wCONSTRUCT *wGetConstruct(Widget *w);
+void wConstruct_ChangeTheme(Widget *w, wTHEME *theme);
 
 int wAddWidgetToConstruct(wCONSTRUCT *c, Widget *w);
 int wAddFontToConstruct(wCONSTRUCT *c, nSDL_Font *f);
@@ -66,6 +67,8 @@ int wFindNextWidget(Widget **widgets, int nWidgets, int key, SDL_Rect previousWi
 BOOL wHasDialogParent(Widget *w);
 int wLayout_GetNumberOfChilds(Widget *w);
 Widget **wLayout_GetChildsList(Widget *w);
+Widget **wLayout_GetChilds(Widget *w);
+Widget *wLayout_GetChild(Widget *w, int n);
 int wLayout_GetCurrentChild(Widget *w);
 
 

@@ -7,14 +7,21 @@
 #include "Text.h"
 #include "textinput.h"
 #include "scrollbar.h"
+#include "nSDL_CustomFonts.h"
+
+#include "dialogs.h"
+
+
+extern char Clipboard[512];
+
 
 // Création
-Widget *wText(const char *text, int dRows, int maxChars)
+Widget *wText(const char *text, int dRows)
 {
-	return wExText(text, dRows, maxChars, NULL, NULL);
+	return wExText(text, dRows, NULL, NULL);
 }
 
-Widget *wExText(const char *text, int dRows, int maxChars, nSDL_Font *f, const char *voidStr)
+Widget *wExText(const char *text, int dRows, nSDL_Font *f, const char *voidStr)
 {
 	Widget *w = malloc(sizeof(Widget));
 	if (!w) return NULL;
@@ -49,7 +56,6 @@ Widget *wExText(const char *text, int dRows, int maxChars, nSDL_Font *f, const c
 		return NULL;
 	}
 	TextArgs *args	 = w->args;
-	args->maxChars		= maxChars;
 	args->voidStr		= (char *) voidStr;
 	args->font			= f;
 	args->dRows			= dRows;
@@ -58,43 +64,28 @@ Widget *wExText(const char *text, int dRows, int maxChars, nSDL_Font *f, const c
 	args->cCharInRow	= 0;
 	args->isEditable	= 1;
 	args->isActive		= 0;
+	args->isSelect		= 0;
 	args->scrollbar	= 0;
-	args->text			= malloc(maxChars + 1);
+	args->bufferSize	= 1024;
+	args->length		= strlen(text);
+	args->cChar			= 0;
+	args->body			= (TextBody) {NULL, 0};
+	args->nKeyWords	= 0;
+	args->keyWords		= NULL;
 	
+	// on ajuste la taille du buffersize
+	while (args->bufferSize < args->length+16)  // +16 par mesure de précaution
+		args->bufferSize += 1024;
+	
+	// on copie le texte
+	args->text = malloc(args->bufferSize);
 	if (!text)
 		args->text[0] = 0;
-	
-	else {
-		int x=0, y=0;
-		do {  // on vérifie qu'il n'y a pas deux espaces consécutifs
-			if (x && (text[x-1] == ' ' || text[x-1] == 21) && text[x] == ' ')
-				continue;
-			args->text[y++] = text[x];
-		} while (text[x++] && y < maxChars);
-	}
-	
-	args->text[maxChars] = 0;
-	args->length			= strlen(args->text);
-	args->cChar				= 0;
-	args->body				= (TextBody) {NULL, 0};
+	else 
+		strcpy(args->text, text);
 	
 	return w;
 }
-
-Widget *wUnEditableText(const char *text, int dRows)
-{
-	Widget *w = wExText(text, dRows, strlen(text), NULL, NULL);
-	wText_SetUnEditable(w);
-	return w;
-}
-
-Widget *wExUnEditableText(const char *text, int dRows, nSDL_Font *f, const char *voidStr)
-{
-	Widget *w = wExText(text, dRows, strlen(text), f, voidStr);
-	wText_SetUnEditable(w);
-	return w;
-}
-
 
 
 
@@ -161,7 +152,8 @@ void TextingProcess(Widget *w)
 		else {
 			c = NULL;
 			x = 0;
-			while (x < args->cChar) {
+			y = -1;
+			while (x < args->cChar) {  // on cherche y le numéro de la ligne où est situé le curseur
 				if (c) x++;
 				x += args->body.rows[++y].length;
 				if (x < args->length) {
@@ -177,23 +169,27 @@ void TextingProcess(Widget *w)
 				args->cRow = 0;
 				args->cCharInRow = args->cChar;
 			}
-			else {
+			
+			else if (args->body.nRows <= args->dRows) {  // si on a pas de scrollbar
 				x -= args->body.rows[y].length;
-				args->cCharInRow = args->cChar - x;
-				if (y > args->cRow) {
-					// on augmente soit yRow, soit cRow si possible
-					if (args->cRow == args->dRows-1) args->yRow = y - args->cRow;
-					else args->cRow = y - args->yRow;
+				args->cCharInRow = args->cChar - x;  // on trouve cCharInRow
+				
+				args->yRow = 0;
+				args->cRow = y;
+			}
+			
+			else {  // si on a des scrollbars, il faut également trouver yRow
+				x -= args->body.rows[y].length;
+				args->cCharInRow = args->cChar - x;  // on trouve cCharInRow
+				
+				args->cRow = y - args->yRow;
+				if (args->cRow < 0) {
+					args->yRow = y;
+					args->cRow = 0;
 				}
-				else {
-					// si on a supprimmé une des premières lignes
-					args->yRow = 0;
-					args->cRow = y;
-				}
-				if (args->yRow && args->body.nRows < args->dRows) {
-					// si on ajoute une des premières lignes
-					args->yRow = 0;
-					args->cRow = y;
+				else if (args->cRow >= args->dRows) {
+					args->yRow = y - args->dRows + 1;
+					args->cRow = args->dRows-1;
 				}
 			}
 		}
@@ -217,10 +213,10 @@ void DrawingProcess(Widget *w)
 	Uint32 c1 = theme->request_c1? theme->request_c1 : theme->color1;
 	Uint32 c2 = theme->request_c2? theme->request_c2 : theme->color1;
 	Uint32 c3 = theme->request_c3? theme->request_c3 : theme->color4;
-	nSDL_Font *f = args->font? args->font : theme->font;
+	nSDL_Font *f = args->font? args->font : theme->request_f1;
 	if (args->isActive == 1) c1 = theme->text_c1? theme->text_c1 : theme->color1;
 	
-	if (args->isActive)
+	if (args->isActive || !args->isEditable)
 		DrawFillRectXY(scr, w->bounds.x+2, w->bounds.y+2, w->bounds.w-4, w->bounds.h-4, c1);
 	else
 		DrawFillRect(scr, &w->bounds, c2);
@@ -240,9 +236,86 @@ void DrawingProcess(Widget *w)
 		}
 	}
 	
+	
+	
+	// on dessine la sélection
+	if (args->isSelect) {
+		int y;
+		int row1, row2, char1, char2;
+		if (args->select[0] < args->cRow+args->yRow || (args->select[0] == args->cRow+args->yRow && args->select[1] < args->cCharInRow)) {
+			row1 = args->select[0];
+			char1 = args->select[1];
+			row2 = args->cRow+args->yRow;
+			char2 = args->cCharInRow;
+		}
+		else {
+			row1 = args->cRow+args->yRow;
+			char1 = args->cCharInRow;
+			row2 = args->select[0];
+			char2 = args->select[1];
+		}
+		int px, py, pw, ph;  // position x,y
+		char *s, c;
+		int z;
+		
+		// on dessine la sélection ligne après ligne
+		for (z=0; z < 2; z++) {  // z=0 : on dessine les rectangles vides  ;  z=1 : on dessine les rectangles pleins
+			for (y=row1; y <= row2; y++) {
+				if (y < args->yRow) continue;  // ligne trop "haute"
+				if (y - args->yRow >= args->dRows) continue;  // ligne trop "basse"
+				
+				
+				// on trouve px et py
+				if (y == row1) {
+					s = args->body.rows[row1].row;  // s est le texte de la ligne y
+					c = *(s + char1);  // c  est la valeur du caractère sélectionné
+					*(s + char1) = 0;
+					px = w->bounds.x + 2 + nSDL_GetStringWidthCF(args->font? args->font:theme->font, s);  // on obtient px
+					*(s + char1) = c;
+					
+					py = w->bounds.y + 2 + 10 * (row1 - args->yRow);
+				}
+				else {
+					px = w->bounds.x + 2;
+					py = w->bounds.y + 2 + 10 * (y - args->yRow);
+				}
+				
+				
+				// on trouve pw et ph
+				if (y == row2) {
+					s = args->body.rows[row2].row;  // s est le texte de la ligne y
+					c = *(s + char2);  // c  est la valeur du caractère sélectionné
+					*(s + char2) = 0;
+					pw = nSDL_GetStringWidthCF(args->font? args->font:theme->font, s);
+					pw -= px - w->bounds.x - 4;
+					*(s + char2) = c;
+					
+					ph = 12;
+				}
+				else {
+					TextRow *Row = &args->body.rows[y];
+					int l = Row->length;
+					c = Row->row[l];
+					Row->row[l] = 0;
+					pw = nSDL_GetStringWidthCF(args->font? args->font:theme->font, Row->row);
+					pw -= px - w->bounds.x - 4;
+					Row->row[l] = c;
+					
+					ph = 12;
+				}
+				
+				px += z, py += z, pw -= 2*z, ph -= 2*z;
+				if (!z) DrawRectXY(scr, px, py, pw, ph, Contrasted(c1, 30));
+				else DrawFillRectXY(scr, px, py, pw, ph, Contrasted(c1, 15));
+			}
+		}
+	}
+	
+	
+	// on dessine le texte
 	if (!args->isActive) DrawRectXY(scr, w->bounds.x+1, w->bounds.y+1, w->bounds.w-2, w->bounds.h-2, theme->color2);
 	if (args->text[0])
-		DrawTextBody(scr, f, w->bounds.x+3, w->bounds.y+4, &args->body, args->yRow, args->dRows);
+		DrawTextBody(scr, f, w->bounds.x+3, w->bounds.y+4, &args->body, args->yRow, args->dRows, args->keyWords, args->nKeyWords);
 	else if (args->voidStr)
 		DrawClippedStr(scr, theme->request_f2, w->bounds.x+3, w->bounds.y+4, args->voidStr);
 	
@@ -252,7 +325,7 @@ void DrawingProcess(Widget *w)
 		char *s = args->body.rows? args->body.rows[args->yRow + args->cRow].row : args->text;
 		char c = *(s + args->cCharInRow);
 		*(s + args->cCharInRow) = 0;
-		int cw = nSDL_GetStringWidth(args->font? args->font:theme->font, s);
+		int cw = nSDL_GetStringWidthCF(f, s);
 		*(s + args->cCharInRow) = c;
 		DrawFillRectXY(scr, w->bounds.x+cw+3, w->bounds.y+3+10*args->cRow, 1, 9, c3);
 	}
@@ -274,12 +347,14 @@ int ActivateText(Widget *w)
 	SDL_Surface *scr = w->construct->scr;
 	TextArgs *args = w->args;
 	args->isActive = 1;
-	char c = 0;
-	char k1=0, k2=0, k3=0, k4=0, k5=0, k6=0;
+	char K=0, KD=0, KV=0, K1=0, K2=0, K3=0, K4=0;
 	BOOL ood = w->construct->onlyOneDynamic;
 	int x = 0, y;
 	char *s;
 	int ok = ACTION_CONTINUE;
+	BOOL B=1;
+	char klist1[4], klist2[4]={};
+	
 	
 	if (ood) goto INLOOP;
 	
@@ -305,210 +380,421 @@ int ActivateText(Widget *w)
 				TextingProcess(w);
 			
 			do {
-				DrawingProcess(w);				
+				DrawingProcess(w);
 				SDL_Flip(scr);
 				while (K_CLICK());
 				
-				// on chope une touche du keyboard
-				if (k1 && (K_CTRL() || K_SHIFT()))
-					while(K_getAlphaKey());
-				if (k2 && (K_CTRL() || K_SHIFT()))
-					while(K_getNumericKey());
-				if (k3 && (K_CTRL() || K_SHIFT()))
-					while(K_getPuncKey());
-				if (k6 && (K_CTRL() || K_SHIFT()))
-					while(K_PARAGRAPH());
 				
-				while (any_key_pressed() && !K_CTRL() && !K_SHIFT());
-				while (!any_key_pressed());
-				
-				
-				if ((K_ENTER() || K_CLICK())) {
-					if ((ok=wExecCallback(w, SIGNAL_CLICK)) != ACTION_CONTINUE)
-						return ok;
+/// -- ON CHOPE UNE TOUCHE DU KEYBOARD !!!!!!! -------------------------------				
+				B = 1;
+				while (B) {
+									
+					/* -- I -- On vérifie qu'une nouvelle touche caractère ne soit pas pressée */
+					K = 0;
+					K_getChar(klist1);
 					
-					if (ood) {
-						if (K_ENTER()) goto QUIT;
+					// on cherche K
+					for (x=0; x < 4; x++) {
+						if (klist1[x]) {
+							for (y=0; y<4; y++) if (klist1[x] == klist2[y])
+								break;
+							
+							if (y==4) {  // alors on a un nouveau caractère !!
+								K = klist1[x];
+								break;
+							}
+						}
+						else break;
 					}
 					
-					else {
-						TextingProcess(w);
+					// on actualise la valeur de klist2, et si une touche a été pressée, on la prend en compte
+					memcpy(klist2, klist1, 4);
+					if (K) {
+						B = 0;
+						continue;
+					}//*/
+					
+					
+					/* -- II -- On vérifie que K_DEL ne soit pas pressée */
+					if (K_DEL()) {
+						if (!KD || K_CTRL()) {
+							B = 0;
+							KD = 1;
+							continue;
+						}
+					}
+					else KD = 0;//*/
+					
+					/* -- III -- On vérifie que K_VAR ne soit pas pressée */
+					if (K_VAR()) {
+						if (!KV) {
+							B = 0;
+							KV = 1;
+							continue;
+						}
+					}
+					else KV = 0;//*/
+					
+					
+					/* -- IV -- On vérifie qu'une touche directionnelle ne soit pas pressée */
+					if (K_UP()) {
+						if ((!K1&&!K2&&!K3&&!K4) || K_CTRL()) {
+							B = 0;
+							K1=1;
+							continue;
+						}
+					}
+					else K1 = 0;
+					
+					if (K_RIGHT()) {
+						if ((!K1&&!K2&&!K3&&!K4) || K_CTRL()) {
+							B = 0;
+							K2=1;
+							continue;
+						}
+					}
+					else K2 = 0;
+					
+					if (K_DOWN()) {
+						if ((!K1&&!K2&&!K3&&!K4) || K_CTRL()) {
+							B = 0;
+							K3=1;
+							continue;
+						}
+					}
+					else K3 = 0;
+					
+					if (K_LEFT()) {
+						if ((!K1&&!K2&&!K3&&!K4) || K_CTRL()) {
+							B = 0;
+							K4=1;
+							continue;
+						}
+					}
+					else K4 = 0;
+					
+					
+					/* -- V -- On vérifie qu'une touche qui fasse sortir du widget ne soit pas pressée */
+					if ((K_ENTER() || K_CLICK())) {
+						if ((ok=wExecCallback(w, SIGNAL_CLICK)) != ACTION_CONTINUE)
+							return ok;
+						
+						if (ood) {
+							if (K_ENTER()) goto QUIT;
+						}
+						
+						else {
+							TextingProcess(w);
+							break;
+						}
+					}
+					
+					else if (K_MENU() || K_TAB() || K_SCRATCHPAD() || K_ESC()) {
+						if (ood) goto QUIT;
 						break;
-					}
+					}//*/
+					
+					/* -- VI -- On active le callback pour K_DOC */
+					else if ((K_DOC()) && !K_CTRL() && !K_SHIFT()) {
+						if ((ok=wExecCallback(w, SIGNAL_KEY)) != ACTION_CONTINUE)
+							return ok;
+						TextingProcess(w);
+						wait_no_key_pressed();
+					}//*/
 				}
-				
-				else if (K_MENU() || K_TAB() || K_DOC() || K_SCRATCHPAD() || K_ESC()) {
-					if (ood) goto QUIT;
-					break;
-				}
-				// on a chopé €-}
-				
-				
-				k1 = K_getAlphaKey();
-				k2 = K_getNumericKey();
-				k3 = K_getPuncKey();
-				k4 = K_DEL();
-				k5 = K_PUNC() && K_CTRL();
-				k6 = K_PARAGRAPH();
+				// on a chopé !!! €-}
+				if (B) break;  // on doit sortir du widget
 				
 				
 				
-				if ((k1||k2||k3||k5||k6) && args->isEditable && args->length < args->maxChars) {
-					if			(k1) c = k1;
-					else if	(k2) c = k2;
-					else if	(k3) c = k3;
-					else if	(k5) c = 255;
-					else if	(k6) c = 21;
+/// -- A PRESENT QU'ON A CHOPE, ON TRAITE LA TOUCHE PRESSEE !!!!!!! -------------------------------				
+			
+				/* I -- Si une touche caractère a été pressée */
+				if (K) {
+					if (!args->isEditable) continue;
 					
 					if (K_SHIFT())
-						c = enshift(c);
+						K = enshift(K);
 					if (K_CTRL())
-						c = enctrl(w->construct, c);
+						K = enctrl(w->construct, K);
 					
-					if (c == ' ') {
-						if (!args->cCharInRow) continue;
-						if (args->cChar && args->text[args->cChar - 1] == ' ')
-							continue;
-						if (args->cChar < args->length && args->text[args->cChar] == ' ')
-							goto RIGHT;
+					// on vérifie que le buffersize est assez grand pour accueillir le nouveau caractère
+					if (args->bufferSize < args->length+4) {  // +4 par mesure de précaution
+						while (args->bufferSize < args->length+4) args->bufferSize += 1024;
+						args->text = realloc(args->text, args->bufferSize);
 					}
 					
-					for (x = args->length-1; x >= args->cChar; x--)
-						args->text[x+1] = args->text[x];
-					args->text[args->cChar++]	= c;
-					args->text[++args->length]	= 0;
+					
+					// s'il y a une sélection, on remplace la sélection par le caractère
+					if (args->isSelect) {
+						// on ajoute le caractère
+						char *p = args->text + min(args->cChar, args->select[2]);
+						*p = K;
+						
+						// on supprime le reste de la sélection
+						int x;
+						int d = max(args->cChar,args->select[2]) - min(args->cChar,args->select[2]);
+						int m = args->length - max(args->cChar,args->select[2]);
+						for (x=1; x <= m; x++) p[x] = p[x+d-1];
+						p[x] = 0;
+						if (args->select[2] < args->cChar) args->cChar = args->select[2]+1;
+						else args->cChar++;
+						args->isSelect = 0;
+						args->length -= d-1;
+					}
+					
+					// sinon, on insère le nouveau caractère dans le buffer texte
+					else {
+						for (x = args->length-1; x >= args->cChar; x--)
+							args->text[x+1] = args->text[x];
+						args->text[args->cChar++]	= K;
+						args->text[++args->length]	= 0;
+					}
 					
 					if ((ok=wExecCallback(w, SIGNAL_ACTION)) != ACTION_CONTINUE)
 						return ok;
-					TextingProcess(w);
+					TextingProcess(w);  // on modifie l'affichage
 				}
 				
 				
-				else if (k4 && args->cChar && args->body.nRows) {
-				if (!args->isEditable) continue;
-				if (args->length > 1) {
-						for (x = args->cChar-1; x < args->length; x++)
-							args->text[x] = args->text[x+1];
-					}
-					else {
-						args->text[0] = 0;
-					}
-					if (args->cChar) args->cChar--;
-					args->length--;
+				
+				/* II -- Si DEL a été pressée */
+				else if (KD) {
+					if ((!args->cChar && !args->isSelect) || !args->body.nRows) continue;
+					if (!args->isEditable) continue;
 					
-					if (args->cChar && (args->text[args->cChar-1] == ' ' || args->text[args->cChar-1] == 21)) {
-						// on enlève les espaces en trop
-						while (args->text[args->cChar] == ' ') {
-							for (x = args->cChar; x < args->length; x++)
+					if (args->isSelect) {
+						// on supprime la sélection
+						char *p = args->text + min(args->cChar, args->select[2]);
+						int x;
+						int d = max(args->cChar,args->select[2]) - min(args->cChar,args->select[2]);
+						int m = args->length - max(args->cChar,args->select[2]);
+						for (x=0; x <= m; x++) p[x] = p[x+d];
+						p[x] = 0;
+						if (args->select[2] < args->cChar) args->cChar = args->select[2];
+						args->isSelect = 0;
+						args->length -= d;
+					}
+					
+					else {
+						if (args->length > 1) {
+							for (x = args->cChar-1; x < args->length; x++)
 								args->text[x] = args->text[x+1];
-							args->length--;
 						}
+						else {
+							args->text[0] = 0;
+						}
+						if (args->cChar) args->cChar--;
+						args->length--;
 					}
-					
-					
+											
 					if ((ok=wExecCallback(w, SIGNAL_ACTION)) != ACTION_CONTINUE)
 						return ok;
 					TextingProcess(w);
 				}
 				
 				
-				else if (K_UP() && args->body.rows) {
-					if (!args->isEditable && !args->yRow) continue;
-					if (args->yRow + args->cRow == 0) {
-						if (!args->isEditable) continue;
-						// si on est à la première ligne, on va au premier caractère
-						args->cChar = 0;
-						args->cCharInRow = 0;
-					}
-					else {
-						// sinon...
-						if (!args->isEditable || !args->cRow)	args->yRow--;
-						else												args->cRow--;
-						x = args->body.rows[args->yRow + args->cRow].length;
-						args->cChar -= x + 1;
-						if (x < args->cCharInRow) {
-							args->cChar -= args->cCharInRow - x;
-							args->cCharInRow = x;
-						}
-						
-						// on vérifie qu'on a bien modifié args->cChar
-						y = args->yRow + args->cRow;
-						s = args->body.rows[y].row + args->body.rows[y].length;
-						if (s == args->body.rows[y+1].row) args->cChar++;
-					}
-				}
 				
-				
-				else if (K_DOWN() && args->body.rows) {
-					if (!args->isEditable && args->body.nRows <= args->dRows)
-						continue;
-					if (!args->isEditable && args->yRow + args->dRows >= args->body.nRows)
-						continue;
+				/* III -- Si VAR a été pressée */
+				else if (KV) {
+					if (K_CTRL()) {
+						// on enregistre dans le clipboard
+						if (!args->isSelect) continue;
+						char *p = &args->text[min(args->cChar, args->select[2])];
+						int l = max(args->cChar, args->select[2]) - min(args->cChar, args->select[2]);
+						strncpy(Clipboard, p, min(l, 1023));
+						Clipboard[min(l,1023)] = 0;
+					}
 					
-					if (args->yRow + args->cRow == args->body.nRows - 1) {
-						// si on est à la dernière ligne, on va au dernier caractère
-						x = args->body.rows[args->yRow + args->cRow].length;
-						args->cChar += x - args->cCharInRow;
-						args->cCharInRow = x;
-					}
 					else {
-						// sinon...
-						x = args->body.rows[args->yRow + args->cRow].length;
-						args->cChar += x + 1;
-						if (!args->isEditable || args->cRow == args->dRows-1)	args->yRow++;
-						else																	args->cRow++;
-						x = args->body.rows[args->yRow + args->cRow].length;
-						if (x < args->cCharInRow) {
-							args->cChar -= args->cCharInRow - x;
-							args->cCharInRow = x;
+						// on copie le clipboard
+						if (!Clipboard[0]) continue;
+						
+						// on supprime la sélection
+						if (args->isSelect) {
+							char *p = args->text + min(args->cChar, args->select[2]);
+							int x;
+							int d = max(args->cChar,args->select[2]) - min(args->cChar,args->select[2]);
+							int m = args->length - max(args->cChar,args->select[2]);
+							for (x=0; x <= m; x++) p[x] = p[x+d];
+							p[x] = 0;
+							if (args->select[2] < args->cChar) args->cChar = args->select[2];
+							args->isSelect = 0;
+							args->length -= d;
 						}
 						
-						// on vérifie qu'on a bien modifié args->cChar
-						y = args->yRow + args->cRow - 1;
-						s = args->body.rows[y].row + args->body.rows[y].length;
-						if (s == args->body.rows[y+1].row) args->cChar--;
-					}
-				}
-				
-				else if (K_LEFT() && args->body.rows) {
-					if (!args->isEditable) continue;
-					if (!args->cChar) continue;
-					args->cChar--;
-					if (!args->cCharInRow) {
-						// 1. on vérifie qu'il faille bien modifier args->cChar
-						y = args->yRow + args->cRow - 1;
-						s = args->body.rows[y].row + args->body.rows[y].length;
-						if (s == args->body.rows[y+1].row) args->cChar++;
+						// on obtient les valeurs nécessaires
+						int x;
+						int t = strlen(Clipboard);  // <t> est la "distance de translation", et le nombre de caractères du clipboard qui seront copiés
+						int l = strlen(args->text + args->cChar);  // <l> est le nombre de caractères qui seront translatés de <t> octets vers la droite
 						
-						// 2. on change les lignes et la position du curseur dans la ligne
-						if (!args->cRow)	args->yRow--;
-						else					args->cRow--;
-						args->cCharInRow = args->body.rows[args->yRow + args->cRow].length;
-					}
-					else
-						args->cCharInRow--;
-				}
-				
-				else if (K_RIGHT() && args->body.rows) {
-				 RIGHT:
-					if (!args->isEditable) continue;
-					if (args->cChar == args->length) continue;
-					args->cChar++; 
-					if (args->cCharInRow == args->body.rows[args->yRow + args->cRow].length) {
-						// 1. on vérifie qu'il faille bien modifier args->cChar
-						y = args->yRow + args->cRow;
-						s = args->body.rows[y].row + args->body.rows[y].length;
-						if (s == args->body.rows[y+1].row) args->cChar--;
 						
-						// 2. on change les lignes et la position du curseur dans la ligne
-						if (args->cRow == args->dRows-1)	args->yRow++;
-						else										args->cRow++;
-						args->cCharInRow = 0;
+						// on vérifie que le buffersize est assez grand pour accueillir les nouveaux caractères
+						if (args->bufferSize < args->length+t+4) {  // +4 par mesure de précaution
+							while (args->bufferSize < args->length+t+4) args->bufferSize += 1024;
+							args->text = realloc(args->text, args->bufferSize);
+						}
+						
+						// on insère le clipboard
+						for (x=l; x >=0; x--)  // 1. on translate <l> octets de <t> vers la droite
+							args->text[args->cChar + t + x] = args->text[args->cChar + x];
+						for (x=0; x < t; x++)  // 2. on copie les <t> caractères du clipboard
+							args->text[args->cChar + x] = Clipboard[x];
+						
+						args->cChar += t;
+						args->length += t;
+						if ((ok=wExecCallback(w, SIGNAL_ACTION)) != ACTION_CONTINUE)
+							return ok;
+						TextingProcess(w);  // on modifie l'affichage
 					}
-					else
-						args->cCharInRow++;
 				}
 				
+				
+				
+				/* IV -- Si une touche directionnelle a été pressée */
+				else if (K1||K2||K3||K4) {
+				
+					if (K_SHIFT()) {
+						if (args->isEditable && args->body.rows && !args->isSelect) {
+							args->select[0] = args->cRow + args->yRow;
+							args->select[1] = args->cCharInRow;
+							args->select[2] = args->cChar;
+							args->isSelect = 1;
+						}
+					}
+					else if (args->isSelect) {
+						args->isSelect = 0;
+						if (K2) {  // si Droite
+							if (args->select[2] > args->cChar) {
+								args->cRow			= args->select[0] - args->yRow;
+								args->cCharInRow	= args->select[1];
+								args->cChar			= args->select[2];
+								if (args->cRow >= args->dRows) {
+									args->yRow = args->select[0] - args->dRows + 1;
+									args->cRow = args->dRows-1;
+								}
+							}
+							continue;
+						}
+						else if (K4) {  // si Gauche
+							if (args->select[2] < args->cChar) {
+								args->cRow			= args->select[0] - args->yRow;
+								args->cCharInRow	= args->select[1];
+								args->cChar			= args->select[2];
+								if (args->cRow < 0) {
+									args->yRow = args->select[0];
+									args->cRow = 0;
+								}
+							}
+							continue;
+						}
+					}
+					
+					
+					if (K1) {  /* K_UP */
+						if (!args->body.rows) continue;
+						if (!args->isEditable && !args->yRow) continue;
+						if (args->yRow + args->cRow == 0) {
+							if (!args->isEditable) continue;
+							// si on est à la première ligne, on va au premier caractère
+							args->cChar = 0;
+							args->cCharInRow = 0;
+						}
+						else {
+							// sinon...
+							if (!args->isEditable || !args->cRow)	args->yRow--;
+							else												args->cRow--;
+							x = args->body.rows[args->yRow + args->cRow].length;
+							args->cChar -= x + 1;
+							if (x < args->cCharInRow) {
+								args->cChar -= args->cCharInRow - x;
+								args->cCharInRow = x;
+							}
+							
+							// on vérifie qu'on a bien modifié args->cChar
+							y = args->yRow + args->cRow;
+							s = args->body.rows[y].row + args->body.rows[y].length;
+							if (s == args->body.rows[y+1].row) args->cChar++;
+						}
+					}
+					
+					
+					else if (K3 && args->body.rows) {  /* K_DOWN */
+						if (!args->isEditable && args->body.nRows <= args->dRows)
+							continue;
+						if (!args->isEditable && args->yRow + args->dRows >= args->body.nRows)
+							continue;
+						
+						if (args->yRow + args->cRow == args->body.nRows - 1) {
+							// si on est à la dernière ligne, on va au dernier caractère
+							x = args->body.rows[args->yRow + args->cRow].length;
+							args->cChar += x - args->cCharInRow;
+							args->cCharInRow = x;
+						}
+						else {
+							// sinon...
+							x = args->body.rows[args->yRow + args->cRow].length;
+							args->cChar += x + 1;
+							if (!args->isEditable || args->cRow == args->dRows-1)	args->yRow++;
+							else																	args->cRow++;
+							x = args->body.rows[args->yRow + args->cRow].length;
+							if (x < args->cCharInRow) {
+								args->cChar -= args->cCharInRow - x;
+								args->cCharInRow = x;
+							}
+							
+							// on vérifie qu'on a bien modifié args->cChar
+							y = args->yRow + args->cRow - 1;
+							s = args->body.rows[y].row + args->body.rows[y].length;
+							if (s == args->body.rows[y+1].row) args->cChar--;
+						}
+					}
+					
+					
+					else if (K4 && args->body.rows) {  /* K_LEFT */
+						if (!args->isEditable) continue;
+						if (!args->cChar) continue;
+						args->cChar--;
+						if (!args->cCharInRow) {
+							// 1. on vérifie qu'il faille bien modifier args->cChar
+							y = args->yRow + args->cRow - 1;
+							s = args->body.rows[y].row + args->body.rows[y].length;
+							if (s == args->body.rows[y+1].row) args->cChar++;
+							
+							// 2. on change les lignes et la position du curseur dans la ligne
+							if (!args->cRow)	args->yRow--;
+							else					args->cRow--;
+							args->cCharInRow = args->body.rows[args->yRow + args->cRow].length;
+						}
+						else
+							args->cCharInRow--;
+					}
+					
+					else if (K2 && args->body.rows) {  /* K_RIGHT */
+					 // RIGHT:
+						if (!args->isEditable) continue;
+						if (args->cChar == args->length) continue;
+						args->cChar++; 
+						if (args->cCharInRow == args->body.rows[args->yRow + args->cRow].length) {
+							// 1. on vérifie qu'il faille bien modifier args->cChar
+							y = args->yRow + args->cRow;
+							s = args->body.rows[y].row + args->body.rows[y].length;
+							if (s == args->body.rows[y+1].row) args->cChar--;
+							
+							// 2. on change les lignes et la position du curseur dans la ligne
+							if (args->cRow == args->dRows-1)	args->yRow++;
+							else										args->cRow++;
+							args->cCharInRow = 0;
+						}
+						else
+							args->cCharInRow++;
+					}
+					
+					
+					// on vérifie à présent que la sélection n'est pas elle-même
+					if (args->isSelect && args->select[0] == args->cRow+args->yRow && args->select[1] == args->cCharInRow)
+						args->isSelect = 0;
+				}
 				
 				else if (!K_CTRL() && !K_SHIFT()) {
 					if ((ok=wExecCallback(w, K_CLICK()||K_ENTER()? SIGNAL_CLICK : SIGNAL_KEY)) != ACTION_CONTINUE)
@@ -520,7 +806,9 @@ int ActivateText(Widget *w)
 				
 			} while (!K_ESC());
 			
+			
 			args->isActive = 1;
+			args->isSelect = 0;
 			DrawingProcess(w);
 			SDL_Flip(scr);
 			while(K_ESC() || K_CLICK());
@@ -550,6 +838,15 @@ void CloseText(Widget *w)
 		if (args->text) free(args->text);
 		if (args->body.rows) free(args->body.rows);
 		if (args->font && wIsFreedArg(w, WFONT)) wAddFontToConstruct(w->construct, args->font);
+		
+		if (args->keyWords) {
+			int x;
+			for (x=0; x < args->nKeyWords; x++) {
+				if (args->keyWords[x].font && wIsFreedArg(w, WFONT))
+					wAddFontToConstruct(w->construct, args->keyWords[x].font);
+			}
+			free(args->keyWords);
+		}
 	}
 }
 
@@ -569,14 +866,13 @@ void wText_SetText(Widget *w, const char *t)
 	if (w->type != WIDGET_TEXT) return;
 	TextArgs *args = w->args;
 	
-	if (!args->isEditable && strlen(t) > args->maxChars) {
-		free(args->text);
-		args->maxChars = strlen(t);
-		args->text = malloc(args->maxChars+1);
-		strcpy(args->text, t);
+	args->length = strlen(t);
+	if (args->bufferSize < args->length+16) {
+		while (args->bufferSize < args->length+16) args->bufferSize += 1024;
+		args->text = realloc(args->text, args->bufferSize);
 	}
-	else if (t) strncpy(args->text, t, args->maxChars);
-	else args->text[0] = 0;
+	
+	strcpy(args->text, t);
 }
 
 char *wText_GetText(Widget *w)
@@ -633,18 +929,32 @@ BOOL wText_IsEditable(Widget *w)
 }
 
 
-void wText_SetMaxChars(Widget *w, int maxChars)
+void wText_AddKeyWord(Widget *w, char *str, nSDL_Font *font)
 {
 	if (!w) return;
 	if (w->type != WIDGET_TEXT) return;
 	TextArgs *args = w->args;
 	
-	char *newText = realloc(args->text, maxChars+1);
-	if (!newText) return;
-	
-	newText[maxChars] = 0;
-	args->text = newText;
+	args->keyWords = realloc(args->keyWords, (args->nKeyWords+1) * sizeof(KEYWORD));
+	strncpy(args->keyWords[args->nKeyWords].str, str, 31);
+	args->keyWords[args->nKeyWords].str[31] = 0;
+	args->keyWords[args->nKeyWords].font = font;
+	args->nKeyWords++;
 }
+
+
+
+
+void wText_RemoveKeyWords(Widget *w)
+{
+	if (!w) return;
+	if (w->type != WIDGET_TEXT) return;
+	TextArgs *args = w->args;
+	args->nKeyWords = 0;
+}
+
+
+
 
 
 

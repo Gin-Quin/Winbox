@@ -282,6 +282,7 @@ int ActivateTabLayout(Widget *w)
 		}
 		
 		if (K_SCRATCHPAD() || K_VAR()) {
+			args->hWidget = args->cWidget;
 			while (K_SCRATCHPAD() || K_VAR()) {
 				
 				if (K_LEFT()) {
@@ -319,10 +320,13 @@ int ActivateTabLayout(Widget *w)
 						w->isDynamic = 0;
 						args->nWidgets = 0;
 						args->nTabs = 0;
+						if ((ok=wExecCallback(w, SIGNAL_ACTION2)) != ACTION_CONTINUE)
+							return ok;  // SIGNAL_ACTION2 = delete a tab
 						wDrawWidget(w);
 						return 2;
 					}
 					
+					// on supprime l'onglet
 					free(args->tabs[args->hWidget].text);
 					args->tabs[args->hWidget].text = NULL;
 					wAddWidgetToConstruct(w->construct, args->widgets[args->hWidget]);
@@ -338,21 +342,30 @@ int ActivateTabLayout(Widget *w)
 					args->tabs = realloc(args->tabs, args->nWidgets * sizeof(struct TAB));
 					
 					// on redessine
-					if (args->hWidget == args->cWidget) {
-						args->hWidget = -1;
+					if (args->hWidget == args->cWidget) {  // si on a supprimé le tab courant
+						if ((ok=wExecCallback(w, SIGNAL_ACTION2)) != ACTION_CONTINUE) {
+							args->hWidget = -1;
+							return ok;  // SIGNAL_ACTION2 = delete a tab
+						}
+						
 						if (args->cWidget >= args->nWidgets)
 							args->cWidget = args->nWidgets - 1;
-						DrawTabLayout(w);
 						args->hWidget = args->cWidget;
+						
+						if ((ok=wExecCallback(w, SIGNAL_ACTION)) != ACTION_CONTINUE)
+							return ok;  // SIGNAL_ACTION = move current tab
+						DrawTabLayout(w);
 					}
-					else {
+					else {  // si on a supprimé un autre tab
+						if ((ok=wExecCallback(w, SIGNAL_ACTION2)) != ACTION_CONTINUE) {
+							args->hWidget = -1;
+							return ok;  // SIGNAL_ACTION2 = delete a tab
+						}
 						if (args->hWidget >= args->nWidgets)
 							args->hWidget = args->nWidgets - 1;
-						if (args->hWidget == args->cWidget)
-							args->hWidget = -1;
+						if (args->cWidget > args->hWidget)
+							args->cWidget--;
 						DrawTabLayout(w);
-						if (args->hWidget == -1)
-							args->hWidget = args->cWidget;
 					}
 					SDL_Flip(scr);
 					child = args->widgets[args->cWidget];
@@ -361,24 +374,28 @@ int ActivateTabLayout(Widget *w)
 				}
 			}
 			
-			if (onlyScratch) {
+			if (onlyScratch) {  // alors on passe au tab suivant
 				args->cWidget = (args->cWidget+1)%args->nTabs;
 				child = args->widgets[args->cWidget];
 				args->hWidget = -1;
+				if ((ok=wExecCallback(w, SIGNAL_ACTION)) != ACTION_CONTINUE)
+					return ok;
 				wDrawWidget(w);
 				SDL_Flip(scr);
 			}
 			
-			else if (args->hWidget == args->cWidget) {
+			else if (args->hWidget == args->cWidget || args->hWidget == -1) {  // si on n'a pas changé d'onglet
 				args->hWidget = -1;
 				DrawTabs(w);
 				SDL_Flip(scr);
 			}
 			
-			else {
+			else {  // si on a changé d'onglet
 				args->cWidget = args->hWidget;
 				child = args->widgets[args->cWidget];
 				args->hWidget = -1;
+				if ((ok=wExecCallback(w, SIGNAL_ACTION)) != ACTION_CONTINUE)
+					return ok;
 				wDrawWidget(w);
 				SDL_Flip(scr);
 			}

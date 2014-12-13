@@ -35,7 +35,7 @@ static wMENU *explorerMenu(const char *path, const char *pattern)
 		
 		if (isFile(pathElt)) 			wMenu_AddItem(m, elts[x]);
 		else if (isFolder(pathElt))	wMenu_AddMenu(m, wMenu(elts[x]));
-		else wFastMsg("ERREUR\nLe chemin n'est ni un dossier ni un fichier :\n%s", pathElt);
+		else wFastMsg("ERROR\nPath is neither a folder nor a file :\n%s", pathElt);
 		free(elts[x]);
 	}
 	
@@ -194,7 +194,7 @@ int  ActivateBoxList(Widget *w)
 	wITEM *itm;
 	BOOL b;
 	BOOL ood = w->construct->onlyOneDynamic;
-	if (ood && args->menu->nItems) goto INLOOP;
+	if (ood && (args->menu->nItems || w->type == WIDGET_EXPLORER)) goto INLOOP;
 	int ok = ACTION_CONTINUE;
 	
 	

@@ -3,7 +3,6 @@
 
 #include <SDL\SDL.h>
 
-
 typedef struct wTHEME {
 	struct BACKGROUND *defbg;  // background de base
 	Uint32 color1;  // couleur principale 1 - background (obsolète?)
@@ -69,8 +68,10 @@ typedef struct wTHEME {
 } wTHEME;
 
 void SetColorKey(SDL_Surface *s);
+void wInitTheme(wTHEME *theme);
+void wSetTheme(wTHEME *theme);
 wTHEME *wDefaultTheme();
-void wCloseTheme(wTHEME *t);
+void wCloseTheme();
 
 #endif
 

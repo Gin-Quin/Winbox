@@ -163,3 +163,19 @@ void wCheck_Set(Widget *w, BOOL b)
 	}
 }
 
+
+char *wCheck_GetText(Widget *w)
+{
+	if (!w) return NULL;
+	if (w->type == WIDGET_CHECK) {
+		CheckArgs *args = w->args;
+		return args->text;
+	}
+	
+	else if (w->type == WIDGET_BUTTON) {
+		ButtonArgs *args = w->args;
+		return args->text;
+	}
+	return NULL;
+}
+

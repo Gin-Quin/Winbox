@@ -1,6 +1,8 @@
 #include <os.h>
 
 
+
+
 char K_getAlphaKey(void){
 	if (isKeyPressed(KEY_NSPIRE_A)) return 'a';
 	if (isKeyPressed(KEY_NSPIRE_B)) return 'b';
@@ -119,5 +121,91 @@ BOOL K_RIGHT()
 { return isKeyPressed(KEY_NSPIRE_UPRIGHT) || isKeyPressed(KEY_NSPIRE_RIGHT) || isKeyPressed(KEY_NSPIRE_RIGHTDOWN); }
 
 
+
+
+
+
+
+// -----------------!!!WARNING!!!-----------------------
+// !!!! NOUVELLE GENERATION DE FONCTIONS DE TOUCHE !!!!
+// -----------------!!!WARNING!!!-----------------------
+// keyList doit être un tableau de 4 octets
+
+static void K_pushChar(char *keyList, char c)
+{
+	int x=0;
+	while (x<4 && keyList[x]) x++;
+	if (x<4) keyList[x] = c;
+}
+
+
+static void K_pushAlphaKey(char *keyList){
+	if (isKeyPressed(KEY_NSPIRE_A)) K_pushChar(keyList,'a');
+	if (isKeyPressed(KEY_NSPIRE_B)) K_pushChar(keyList,'b');
+	if (isKeyPressed(KEY_NSPIRE_C)) K_pushChar(keyList,'c');
+	if (isKeyPressed(KEY_NSPIRE_D)) K_pushChar(keyList,'d');
+	if (isKeyPressed(KEY_NSPIRE_E)) K_pushChar(keyList,'e');
+	if (isKeyPressed(KEY_NSPIRE_F)) K_pushChar(keyList,'f');
+	if (isKeyPressed(KEY_NSPIRE_G)) K_pushChar(keyList,'g');
+	if (isKeyPressed(KEY_NSPIRE_H)) K_pushChar(keyList,'h');
+	if (isKeyPressed(KEY_NSPIRE_I)) K_pushChar(keyList,'i');
+	if (isKeyPressed(KEY_NSPIRE_J)) K_pushChar(keyList,'j');
+	if (isKeyPressed(KEY_NSPIRE_K)) K_pushChar(keyList,'k');
+	if (isKeyPressed(KEY_NSPIRE_L)) K_pushChar(keyList,'l');
+	if (isKeyPressed(KEY_NSPIRE_M)) K_pushChar(keyList,'m');
+	if (isKeyPressed(KEY_NSPIRE_N)) K_pushChar(keyList,'n');
+	if (isKeyPressed(KEY_NSPIRE_O)) K_pushChar(keyList,'o');
+	if (isKeyPressed(KEY_NSPIRE_P)) K_pushChar(keyList,'p');
+	if (isKeyPressed(KEY_NSPIRE_Q)) K_pushChar(keyList,'q');
+	if (isKeyPressed(KEY_NSPIRE_R)) K_pushChar(keyList,'r');
+	if (isKeyPressed(KEY_NSPIRE_S)) K_pushChar(keyList,'s');
+	if (isKeyPressed(KEY_NSPIRE_T)) K_pushChar(keyList,'t');
+	if (isKeyPressed(KEY_NSPIRE_U)) K_pushChar(keyList,'u');
+	if (isKeyPressed(KEY_NSPIRE_V)) K_pushChar(keyList,'v');
+	if (isKeyPressed(KEY_NSPIRE_W)) K_pushChar(keyList,'w');
+	if (isKeyPressed(KEY_NSPIRE_X)) K_pushChar(keyList,'x');
+	if (isKeyPressed(KEY_NSPIRE_Y)) K_pushChar(keyList,'y');
+	if (isKeyPressed(KEY_NSPIRE_Z)) K_pushChar(keyList,'z');
+}
+
+static void K_pushNumericKey(char *keyList){
+	if (isKeyPressed(KEY_NSPIRE_0)) K_pushChar(keyList,'0');
+	if (isKeyPressed(KEY_NSPIRE_1)) K_pushChar(keyList,'1');
+	if (isKeyPressed(KEY_NSPIRE_2)) K_pushChar(keyList,'2');
+	if (isKeyPressed(KEY_NSPIRE_3)) K_pushChar(keyList,'3');
+	if (isKeyPressed(KEY_NSPIRE_4)) K_pushChar(keyList,'4');
+	if (isKeyPressed(KEY_NSPIRE_5)) K_pushChar(keyList,'5');
+	if (isKeyPressed(KEY_NSPIRE_6)) K_pushChar(keyList,'6');
+	if (isKeyPressed(KEY_NSPIRE_7)) K_pushChar(keyList,'7');
+	if (isKeyPressed(KEY_NSPIRE_8)) K_pushChar(keyList,'8');
+	if (isKeyPressed(KEY_NSPIRE_9)) K_pushChar(keyList,'9');
+}
+
+static void K_pushPuncKey(char *keyList){
+	if (isKeyPressed(KEY_NSPIRE_SPACE))		K_pushChar(keyList,' ');
+	if (isKeyPressed(KEY_NSPIRE_PLUS))		K_pushChar(keyList,'+');
+	if (isKeyPressed(KEY_NSPIRE_MINUS))		K_pushChar(keyList,'-');
+	if (isKeyPressed(KEY_NSPIRE_MULTIPLY))	K_pushChar(keyList,'*');
+	if (isKeyPressed(KEY_NSPIRE_DIVIDE))	K_pushChar(keyList,'/');
+	if (isKeyPressed(KEY_NSPIRE_COMMA))		K_pushChar(keyList,',');
+	if (isKeyPressed(KEY_NSPIRE_COLON))		K_pushChar(keyList,':');
+	if (isKeyPressed(KEY_NSPIRE_RP))			K_pushChar(keyList,')');
+	if (isKeyPressed(KEY_NSPIRE_LP))			K_pushChar(keyList,'(');
+	if (isKeyPressed(KEY_NSPIRE_PERIOD))	K_pushChar(keyList,'.');
+	if (isKeyPressed(KEY_NSPIRE_NEGATIVE))	K_pushChar(keyList,250);
+	if (isKeyPressed(KEY_NSPIRE_EQU))		K_pushChar(keyList,'=');
+	if (isKeyPressed(KEY_NSPIRE_RET))		K_pushChar(keyList,'\n');
+	if (isKeyPressed(KEY_NSPIRE_QUESEXCL))	K_pushChar(keyList, 20);
+	return ;
+}
+
+
+void K_getChar(char *keyList)
+{
+	memset(keyList, 0, 4);
+	K_pushAlphaKey(keyList);
+	K_pushNumericKey(keyList);
+	K_pushPuncKey(keyList);
+}
 
 

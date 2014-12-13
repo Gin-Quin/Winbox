@@ -394,6 +394,16 @@ void wList_SetMenu(Widget *w, wMENU *m)
 	}
 }
 
+
+wMENU *wList_GetMenu(Widget *w)
+{
+	if (!w) return NULL;
+	if (w->type != WIDGET_LIST && w->type != WIDGET_BOXLIST) return NULL;
+	ListArgs *args = w->args;
+	return args->menu;
+}
+
+
 void wList_SetMaxSelectableItem(Widget *w, int max)
 {
 	if (!w) return;

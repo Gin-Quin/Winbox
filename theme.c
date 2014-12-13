@@ -4,6 +4,14 @@
 #include "widgets.h"
 
 
+extern wTHEME *Theme;
+
+void wInitTheme(wTHEME *theme)
+{
+	if (!theme) theme = wDefaultTheme();
+	if (theme != Theme) wCloseTheme(Theme);
+	Theme = theme;
+}
 
 
 
@@ -220,8 +228,9 @@ wTHEME *wDefaultTheme()
 	return t;
 }
 
-void wCloseTheme(wTHEME *t)
+void wCloseTheme()
 {
+	wTHEME *t = Theme;
 	if (!t) return;
 	free(t->defbg);
 	if (t->font) nSDL_FreeFont(t->font);

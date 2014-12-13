@@ -21,6 +21,7 @@ int AddDialog(Widget *w, Widget *child, int spot);
 
 // Méthodes
 void wDialog_SetTitle(Widget *w, const char *title);
+char *wDialog_GetTitle(Widget *w);
 void wDialog_SetTitleBackground(Widget *w, wBACKGROUND *bg);
 
 #endif

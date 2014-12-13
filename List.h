@@ -28,6 +28,7 @@ void CloseList(Widget *w);
 
 // Méthodes
 void wList_SetMenu(Widget *w, wMENU *m);
+wMENU *wList_GetMenu(Widget *w);
 void wList_SetMaxSelectableItem(Widget *w, int max);
 
 wMENU *wList_GetCurrentItem(Widget *w, int *nItem);

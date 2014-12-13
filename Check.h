@@ -18,6 +18,7 @@ Widget *wCheck(const char *text, BOOL isChecked);
 // Méthodes
 void wCheck_Set(Widget *w, BOOL b);
 BOOL wCheck_IsChecked(Widget *w);
+char *wCheck_GetText(Widget *w);
 
 #endif
 

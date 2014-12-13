@@ -5,236 +5,217 @@
 #include "keys.h"
 #include "structures.h"
 #include "textInput.h"
+#include "colored_strings.h"
+#include "nSDL_CustomFonts.h"
+
+#include "dialogs.h"
 
 
-TextBody getTextBody(nSDL_Font *f, int w, char *s)
+TextBody getTextBody(nSDL_Font *f, int W, char *s)
 {
-	int x, y, z;
-	char c;
 	TextBody text = {NULL, 0};
-	void *tmp;
-	int nRows = 0;
+	if (!s || !s[0]) return text;
 	TextRow *rows = NULL;
+	char *p0 = s;
+	char *p1, *p2, *p3, *p4;
+	p1 = p0-1;
+	p2 = p0;
+	char *pmax = s + strlen(s);
+	char c;
 	
-	if (!s) return text;
-	if (!s[0]) return text;
-	if (w < 20) return text;
-	
-	
-	// 1-- on sépare en lignes
-	x = 0; // x = position dans la chaîne
-	c = s[x];
-	
-	if (c == 21) {
-		z = x;
-		goto NEWLINE;
-	}
-	
-	while (c) {
-		y = x+1;
+	while (p0 <= pmax) {  // condition théoriquement inutile ; que je mets par sécurité
+		p2 = strchr(p1+1, ' ');
+		p3 = strchr(p1+1, '\n');
+		p4 = strchr(p1+1, '\25');
 		
-		do {
-			c = s[y];
-			z = y - 1;
-			if (z > x) s[z] = ' ';
-			while (c && c != ' ' && c != 21) c = s[++y];
-			s[y++] = 0;
-		} while (c && c!=21 && nSDL_GetStringWidth(f, s+x) < w);
+		if (!p3) p3 = p4;
+		else if (p4) p3 = min(p3, p4);
+		// p3 est à présent le prochain 'saut de ligne'
 		
-		s[y-1] = c;
-		
-		
-		
-		if (!c) {
+		if (!p2 && !p3) { // s'il n'y a plus de séparateurs après p1
 			
-			if (nSDL_GetStringWidth(f, s+x) >= w) {
+			if (nSDL_GetStringWidthCF(f, p0) <= W) {  // pas besoin de tronquer la ligne ! C'est donc la dernière ligne !
+				text.nRows++;
+				rows = realloc(rows, sizeof(TextRow) * text.nRows);
+				rows[text.nRows-1].row = p0;
+				rows[text.nRows-1].length = strlen(p0);
+				break;  // on a terminé
+			}
+			
+			if (p1 > p0) {  // si p1 est bien défini, alors [p0->p1] forme une ligne de bonne taille !
+				text.nRows++;
+				rows = realloc(rows, sizeof(TextRow) * text.nRows);
+				rows[text.nRows-1].row = p0;
+				rows[text.nRows-1].length = p1-p0;
+				p0 = p1+1;
+				continue;
+			}
+			
+			else {  // sinon, on est au début d'une nouvelle ligne
+				// on tronque la ligne
+				p1 = p0;  // la ligne doit faire minimum 1 caractère, sinon on rentre dans une boucle infinie
+				c = *p1;
 				
-				if (z == x) {
-					// si le dernier mot est trop grand,
-					// on chope toutes ses lignes.
-					// (eh oui il peut y en avoir plusieurs... :( )
-					do {
-						y = x+1;
-						
-						do {
-							if (y > x+1) s[y-1] = c;
-							c = s[y];
-							s[y++] = 0;
-						} while (nSDL_GetStringWidth(f, s+x) < w);
-						s[y-1] = c;
-						
-						// on enregistre la ligne
-						tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-						if (!tmp) break;
-						rows = tmp;
-						rows[nRows].row = s+x;
-						rows[nRows++].length = y-x-2;
-						x = y-2;
-					} while (nSDL_GetStringWidth(f, s+x) >= w);
-					
-					y = x + strlen(s+x) + 2;
-					c = 0;
-				}
+				do {
+					*p1 = c;
+					p1++;
+					c = *p1;
+					*p1 = 0;
+				} while (nSDL_GetStringWidthCF(f, p0) <= W);
+				*p1 = c;
 				
-				else {
-					// on a deux mots, dont le premier est de bonne taille
-					// mais le premier+second est trop grand
-					// soit taille(second) < w et il ne fait qu'une ligne
-					// soit taille(second) >= w et peut faire plusieurs lignes.
-					
-					// on enregistre le premier mot
-					tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-					if (!tmp) break;
-					rows = tmp;
-					rows[nRows].row = s+x;
-					rows[nRows++].length = z-x;
-					x = z + 1;
-					
-					// on enregistre le 2e
-					while (nSDL_GetStringWidth(f, s+x) >= w) {
-						y = x+1;
-						
-						do {
-							if (y > x+1) s[y-1] = c;
-							c = s[y];
-							s[y++] = 0;
-						} while (nSDL_GetStringWidth(f, s+x) < w);
-						s[y-1] = c;
-						
-						// on enregistre la ligne
-						tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-						if (!tmp) break;
-						rows = tmp;
-						rows[nRows].row = s+x;
-						rows[nRows++].length = y-x-2;
-						x = y-2;
-					}
-					y = x + strlen(s+x) + 1;
-					c = 0;
-				}
+				// [p0->p1] forme à présent une ligne !
+				text.nRows++;
+				rows = realloc(rows, sizeof(TextRow) * text.nRows);
+				rows[text.nRows-1].row = p0;
+				rows[text.nRows-1].length = (--p1)-p0;
+				p0 = p1--;
 			}
 			
-		}
-		
-		else if (c == 21) {
-			s[y-1] = 0;
-			if (z != x && nSDL_GetStringWidth(f, s+x) >= w) {
-				// alors on traite l'espace (en Z) d'abord !
-				s[y-1] = 21;
-				goto SPACE;
-			}
-			
-			z = y-1;
-			
-			if (nSDL_GetStringWidth(f, s+x) >= w) {
-				while (nSDL_GetStringWidth(f, s+x) >= w) {
-					y = x+1;
-					
-					do {
-						if (y > x+1) s[y-1] = c;
-						c = s[y];
-						s[y++] = 0;
-					} while (nSDL_GetStringWidth(f, s+x) < w);
-					s[y-1] = c;
-					
-					// on enregistre la ligne
-					tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-					if (!tmp) break;
-					rows = tmp;
-					rows[nRows].row = s+x;
-					rows[nRows++].length = y-x-2;
-					x = y-2;
-				}
-			}
-			s[z] = 21;
-			
-		  NEWLINE:
-			// on enregistre
-			tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-			if (!tmp) break;
-			rows = tmp;
-			rows[nRows].row = s+x;
-			rows[nRows++].length = z-x;
-			
-			while(s[z+1] == 21) {
-				tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-				if (!tmp) break;
-				rows = tmp;
-				rows[nRows].row = s+z+1;
-				rows[nRows++].length = 0;
-				z++;
-			}
-			
-			if (s[z+1] == 0)  {
-				tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-				if (!tmp) break;
-				rows = tmp;
-				rows[nRows].row = s+z+1;
-				rows[nRows++].length = 0;
-				break;
-			}
-			
-			
-			x = z+1;
-			c = 21;
 			continue;
 		}
 		
+		if (!p2) p2 = p3;
+		else if (p3) p2 = min(p2, p3);
+		// p2 est à présent le prochain 'séparateur'
 		
 		
+		// on vérifie qu'il n'y ait pas de '\n'
+		c = *p2;
+		*p2 = 0;
 		
-	  SPACE:
-		// on enregistre
-		tmp = realloc(rows, (nRows+1)*sizeof(TextRow));
-		if (!tmp) break;
-		rows = tmp;
-		rows[nRows].row = s+x;
+		if (nSDL_GetStringWidthCF(f, p0) > W) { // si [p0->p2] dépasse, alors [p0->p1] forme une nouvelle ligne
 			
-		if (c && z == x) {
-			// si le mot est plus grand que la largeur maximale, on doit le couper
-			y = x+1;
-			do {
-				if (y > x+1) s[y-1] = c;
-				c = s[y];
-				s[y++] = 0;
-			} while (nSDL_GetStringWidth(f, s+x) < w);
-			s[y-1] = c;
+			if (p0 > p1) { // p1 n'est pas défini (on vient de commencer une nouvelle ligne)
+				// alors [p0->p2] forme une ligne sans séparateurs qui dépasse !!
+				// on tronque la ligne
+				*p2 = c;
+				p1 = p0;  // la ligne doit faire minimum 1 caractère, sinon on rentre dans une boucle infinie
+				c = *p1;
+				
+				do {
+					*p1 = c;
+					p1++;
+					c = *p1;
+					*p1 = 0;
+				} while (nSDL_GetStringWidthCF(f, p0) <= W);
+				*p1 = c;
+				
+				// [p0->p1] forme à présent une ligne !
+				text.nRows++;
+				rows = realloc(rows, sizeof(TextRow) * text.nRows);
+				rows[text.nRows-1].row = p0;
+				rows[text.nRows-1].length = (--p1)-p0;
+				p0 = p1--;
+				continue;
+			}
 			
-			rows[nRows++].length = y-x-2;
-			x = y-2;
+			else {  // [p0->p1] forme une ligne de bonne taille !
+				// on ajoute la ligne !
+				text.nRows++;
+				rows = realloc(rows, sizeof(TextRow) * text.nRows);
+				rows[text.nRows-1].row = p0;
+				rows[text.nRows-1].length = p1 - p0;
+				
+				p0 = p1+1;
+			}
 		}
 		
-		else {
-			// si le mot est normalement constitué
-			rows[nRows++].length = (c? z:y-1) - x;
-			x = (c? z+1:y);
+		else {  // sinon, [p0->p2] est de bonne taille, donc : on continue si (c = ' '), ou on passe à la ligne si <c> est un saut de ligne
+			
+			if (c == ' ') {
+				p1 = p2;
+			}
+			
+			else {
+				// on ajoute la ligne !
+				text.nRows++;
+				rows = realloc(rows, sizeof(TextRow) * text.nRows);
+				rows[text.nRows-1].row = p0;
+				rows[text.nRows-1].length = p2 - p0;
+				
+				p1 = p2;
+				p0 = p1+1;
+			}
 		}
+		
+		
+		// on remet sa valeur à p2
+		*p2 = c;
 	}
+
 	
 	text.rows = rows;
-	text.nRows = nRows;
 	return text;
 }
 
-void DrawTextRow(SDL_Surface *scr, nSDL_Font *f, int x, int y, TextRow *l)
+
+
+
+void DrawTextRow(SDL_Surface *scr, nSDL_Font *f, int x, int y, TextRow *l, KEYWORD *kwords, int nkwords)
 {
 	if (!l->length) return;
 	char c = l->row[l->length];
 	l->row[l->length] = 0;
+	int t;
+	char *p;
+	C_WORD *cwords = malloc(64 * sizeof(C_WORD));  // 64 mots colorés par ligne semble être une limite (plus que) raisonnable
+	int ncw = 0;  // compteur de mots colorés
+	int isSym;  // un symbole est un caractère simple différent d'une lettre
+	char tc;
+	int b;  // boolean
 	
-	DrawClippedStr(scr, f, x, y, l->row);
+	
+	for (t=0; t < nkwords; t++) {  // on check s'il y a des mots à colorer
+		// on vérifie si le mot-clé est un symbole
+		isSym = 0;
+		if ((tc=strlen(kwords[t].str)) == 1) {
+			if ((tc<'a' || tc>'z') && (tc<'A' || tc>'Z'))
+				isSym = 1;
+		}
+		
+		p = strstr(l->row, kwords[t].str);
+		
+		while (p) {  // si on en trouve un, on l'ajoute aux CWORDS
+			// on vérifie tout d'abord, si on n'a pas un symbole, que le mot n'est pas
+			// inclus dans un mot plus grand (ex:  on cherche 'int' mais on ne va pas colorer
+			// les trois premiers caractères de 'integer')
+			b = 1;
+			if (!isSym) {
+				if (p > l->row) {
+					tc = *(p-1);
+					if ((tc>='a' && tc<='z') || (tc>='A' && tc<='Z') || (tc>='0' && tc<='9')) b = 0;
+				}
+				// si kwords[t].str n'est pas tout au bout de la ligne
+				tc = p[strlen(kwords[t].str)];
+				if ((tc>='a' && tc<='z') || (tc>='A' && tc<='Z') || (tc>='0' && tc<='9')) b = 0;
+			}
+			
+			if (b) {
+				cwords[ncw].offset = p - l->row;
+				cwords[ncw].length = strlen(kwords[t].str);
+				cwords[ncw++].font = kwords[t].font;
+			}
+			
+			p = strstr(p+strlen(kwords[t].str), kwords[t].str);  // on cherche ensuite la prochaine occurence du mot
+		}
+	}
+	DrawColoredString(scr, f, x, y, l->row, (S_COLORS) {ncw, cwords});
 	
 	l->row[l->length] = c;
+	free(cwords);
 }
 
-void DrawTextBody(SDL_Surface *scr, nSDL_Font *f, int x, int y, TextBody *b, int fRow, int nRows)
+
+
+void DrawTextBody(SDL_Surface *scr, nSDL_Font *f, int x, int y, TextBody *b, int fRow, int nRows, KEYWORD *kwords, int nkwords)
 {
 	if (nRows <= 0 || b->nRows <= 0 || fRow < 0 || fRow > b->nRows) return;
 	int h = 10;
 	int z;
 	
 	for (z = 0; z < min(nRows, b->nRows - fRow); z++)
-		DrawTextRow(scr, f, x, y+h*z, &(b->rows[z+fRow]));
+		DrawTextRow(scr, f, x, y+h*z, &(b->rows[z+fRow]), kwords, nkwords);
 }
 
 
@@ -319,7 +300,7 @@ char enctrl(wCONSTRUCT *ctr, char c)
 		nchars = 2;
 		for (x = 0; x < nchars; x++) chars[x] = tmp[x];
 	}
-	else if (c == 255) {
+	else if (c == 20) {
 		nchars = 27;
 		for (x = 0; x < nchars; x++) chars[x] = 224+x;
 	}

@@ -24,5 +24,6 @@ int AddWindow(Widget *w, Widget *child, int spot);
 void wWindow_SetTitleBackground(Widget *w, wBACKGROUND *bg);
 void wWindow_SetTitle(Widget *w, const char *title);
 Widget *wWindow_GetList(Widget *w);
+char *wWindow_GetTitle(Widget *w);
 
 #endif

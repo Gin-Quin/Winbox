@@ -9,6 +9,9 @@
 #include "dialogs.h"
 
 
+char Clipboard[1024];
+wTHEME *Theme;
+
 typedef struct LAYOUT {
 	int nWidgets;
 	Widget **widgets;
@@ -55,11 +58,13 @@ wCONSTRUCT *wNewConstruct(Widget *w)
 	return c;
 }
 
-int wActivateConstruct(Widget *w, wTHEME *theme)
+int wActivateConstruct(Widget *w)
 {
 	if (!w) return -1;
 	int ok = ACTION_REFRESH;
 	wCONSTRUCT *c;
+	Clipboard[0] = 0;  // on (ré)initialise le Clipboard
+	Clipboard[1021] = 0;
 	
 	// on obtient le construct
 	if (!w->construct) c = wNewConstruct(w);
@@ -70,16 +75,14 @@ int wActivateConstruct(Widget *w, wTHEME *theme)
 		DrawSurface(c->scr, &c->widgets[0]->bounds, c->image, NULL);
 	}
 	
-	// on gère le thème
-	if (!c->theme) c->theme = theme? theme : wDefaultTheme();
-	else if (theme) {
-		wCloseTheme(c->theme);
-		c->theme = theme;
-	}
 	
 	// on active
 	while (ok == ACTION_REFRESH) {
+		// on gère le thème
+		if (c->theme != Theme) c->theme = Theme;
 		wDrawWidget(c->widgets[0]);
+		SDL_Flip(c->scr);
+		while (K_ENTER() || K_ESC() || K_CLICK() || K_LEFT() || K_RIGHT() || K_UP() || K_DOWN());
 		
 		if (w->isDynamic)
 			ok = wActivateWidget(c->widgets[0]);
@@ -103,15 +106,15 @@ int wActivateConstruct(Widget *w, wTHEME *theme)
 }
 
 
-int wExecConstruct(Widget *w, wTHEME *theme)
+int wExecConstruct(Widget *w)
 {
-	int ok = wActivateConstruct(w, theme);
+	int ok = wActivateConstruct(w);
 	if (ok != -1) wCloseConstruct(w);
 	return ok;
 }
 
 
-void wDrawConstruct(Widget *w, wTHEME *theme)
+void wDrawConstruct(Widget *w)
 {
 	if (!w) return;
 	wCONSTRUCT *c;
@@ -126,11 +129,7 @@ void wDrawConstruct(Widget *w, wTHEME *theme)
 	}
 	
 	// on gère le thème
-	if (!c->theme) c->theme = theme? theme : wDefaultTheme();
-	else if (theme) {
-		wCloseTheme(c->theme);
-		c->theme = theme;
-	}	
+	if (!c->theme) c->theme = Theme;
 	
 	// on dessine
 	wDrawWidget(c->widgets[0]);
@@ -174,10 +173,16 @@ void wCloseConstruct(Widget *w)
 	free(c->elts);
 	
 	// on ferme le thème et on actualise l'écran
-	if (wIsFreedArg(w, WTHEME)) wCloseTheme(c->theme);
 	if (b) SDL_Flip(c->scr);
 	free(c);
 	while (K_ENTER() || K_UP() || K_DOWN());
+}
+
+
+void wConstruct_ChangeTheme(Widget *w, wTHEME *theme)
+{
+	wInitTheme(theme);
+	w->construct->theme = Theme;
 }
 
 
@@ -390,14 +395,6 @@ int wRemoveMenuFromConstruct(wCONSTRUCT *c, wMENU *m)
 	return 1;
 }
 
-
-
-void wConstruct_SetCustomTheme(wCONSTRUCT *c, wTHEME *theme)
-{
-	if (!c || !theme) return;
-	wCloseTheme(c->theme);
-	c->theme = theme;
-}
 
 
 wCONSTRUCT *wGetConstruct(Widget *w)
@@ -798,8 +795,7 @@ void wSetDynamism(Widget *w, BOOL isDynamic)
 
 int wExecCallback(Widget *w, int signal)
 {
-	if (!w) return ACTION_CONTINUE;
-	if (!w->callBack && signal != SIGNAL_KEY) return ACTION_CONTINUE;
+	if (!w || (!w->callBack && signal != SIGNAL_KEY)) return ACTION_CONTINUE;
 	int r = ACTION_CONTINUE;
 	int rp = ACTION_CONTINUE;
 	
@@ -820,10 +816,12 @@ int wExecCallback(Widget *w, int signal)
 	}
 	
 	// on redessine les bounds
-	if (w->bounds.w > 0 && w->bounds.h > 0 && (w->type != WIDGET_LIST || w->displayBounds != -1)) {
-		wDrawWidget(w);
-		if (signal != SIGNAL_LEAVE && w->isDynamic && !w->isLayout)
-			wDrawBounds(w);
+	if (r == ACTION_CONTINUE) {
+		if (w->bounds.w > 0 && w->bounds.h > 0 && (w->type != WIDGET_LIST || w->displayBounds != -1)) {
+			wDrawWidget(w);
+			if (signal != SIGNAL_LEAVE && w->isDynamic && !w->isLayout)
+				wDrawBounds(w);
+		}
 	}
 	
 	return r;
@@ -1008,6 +1006,21 @@ Widget **wLayout_GetChildsList(Widget *w)
 	if (!w || !w->isLayout || !w->args || w->type == WIDGET_WINDOW || w->type == WIDGET_DIALOG) return NULL;
 	return ((LAYOUT *) w->args)->widgets;
 }
+
+
+Widget **wLayout_GetChilds(Widget *w)  // pareil que la fonction ci-dessus
+{
+	if (!w || !w->isLayout || !w->args || w->type == WIDGET_WINDOW || w->type == WIDGET_DIALOG) return NULL;
+	return ((LAYOUT *) w->args)->widgets;
+}
+
+
+Widget *wLayout_GetChild(Widget *w, int n)
+{
+	if (!w || !w->isLayout || !w->args || w->type == WIDGET_WINDOW || w->type == WIDGET_DIALOG) return NULL;
+	return (((LAYOUT *) w->args)->widgets)[n];
+}
+
 
 int wLayout_GetCurrentChild(Widget *w)
 {

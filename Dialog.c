@@ -221,6 +221,15 @@ void wDialog_SetTitle(Widget *w, const char *title)
 }
 
 
+char *wDialog_GetTitle(Widget *w)
+{
+	if (!w) return NULL;
+	DialogArgs *args = w->args;
+	return args->title;
+}
+
+
+
 void wDialog_SetTitleBackground(Widget *w, wBACKGROUND *bg)
 {
 	if (!w || !bg) return;

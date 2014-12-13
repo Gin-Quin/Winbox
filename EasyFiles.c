@@ -213,15 +213,30 @@ int folder_GetNumberOfElements(const char *path)
 int folder_GetElements(const char *path, const char *pattern, char **result)
 {
 	if (!path || !result) return -1;
-	int n = 0;
+	int x, n = 0;
 	DIR *folder = opendir(path);
 	struct dirent *elt;
 	if (!folder) return -1;
 	char pathElt[256];
+	char *pname;
+	int isCapped;
 	
 	// on passe les éléments "." et ".."
 	readdir(folder);
 	readdir(folder);
+	
+	// pour trier dans l'ordre alphabétique, on va créer une liste chaînée des élements !
+	struct CHAIN_LIST {
+		char *name;
+		struct CHAIN_LIST *previous;
+		struct CHAIN_LIST *next;
+		int isCapped;
+	};
+	
+	struct CHAIN_LIST *first = NULL;
+	struct CHAIN_LIST *cl;
+	struct CHAIN_LIST *newcl;
+	
 	
 	// on trouve les éléments
 	while ((elt = readdir(folder))) {
@@ -232,13 +247,67 @@ int folder_GetElements(const char *path, const char *pattern, char **result)
 		
 		// si c'est un fichier, on vérifie que le pattern match avec le nom du fichier
 		if (isFolder(pathElt) || matchPattern(elt->d_name, pattern)) {
-			result[n] = malloc(strlen(elt->d_name)+1);
-			strcpy(result[n], elt->d_name);
+			pname = malloc(strlen(elt->d_name)+1);
+			strcpy(pname, elt->d_name);
 			n++;
+			if (pname[0] >= 'A' && pname[0] <= 'Z') {
+				isCapped = 1;
+				pname[0] += 'a' - 'A';
+			}
+			else isCapped = 0;
+
+// wFastMsg("n = %i\npname = %s", n, pname);			
+			// puis on enregistre le résultat dans la liste chaînée
+			if (!first) {
+				first = malloc(sizeof(struct CHAIN_LIST));
+				first->name = pname;
+				first->previous = NULL;
+				first->next = NULL;
+				first->isCapped = isCapped;
+			}
+			
+			else {
+				cl = first;
+				while (cl->next && strcmp(pname, cl->name) > 0)  // tant que pname est alphabétiquement 'plus grand'
+					cl = cl->next;
+				
+				if (!cl->next && strcmp(pname, cl->name) > 0) {
+					// alors pname est la plus 'grande' des chaînes
+					newcl = malloc(sizeof(struct CHAIN_LIST));
+					newcl->name = pname;
+					newcl->previous = cl;
+					newcl->next = NULL;
+					newcl->isCapped = isCapped;
+					cl->next = newcl;
+				}
+				
+				else  {
+					// alors pname se situe juste avant cl
+					newcl = malloc(sizeof(struct CHAIN_LIST));
+					newcl->name = pname;
+					newcl->previous = cl->previous;
+					if (newcl->previous) newcl->previous->next = newcl;
+					newcl->next = cl;
+					newcl->isCapped = isCapped;
+					cl->previous = newcl;
+					if (first == cl) first = newcl;
+				}
+			}
 		}
 	}
-	
 	closedir(folder);
+	
+	
+	// on les stocke ensuite dans result ; ils sont alors classés alphabétiquement
+	newcl = first;
+	for (x=0; x < n; x++) {
+		result[x] = newcl->name;  // on stocke le résultat
+		if (newcl->isCapped) (result[x])[0] -= 'a' - 'A';
+		cl = newcl;
+		newcl = newcl->next;  // on passe au prochain path
+		free(cl);  // on libère la CHAIN_LIST
+	}
+	
 	return n;
 }
 

@@ -38,7 +38,7 @@ nSDL_Font *nSDL_LoadCustomFont(unsigned char *fontChars, Uint8 r, Uint8 g, Uint8
 			
 			if ( fontChars[offset + j*((char_width-1)/8 + 1) + k/8]  &  (1 << (7 - k%8)) ) { /* "Pixel" set */
 				
-				if ( k > max_width ) {
+				if ( k >= max_width ) {
 					font->char_width[i] = k + 1;
 					max_width = k;
 				}
@@ -71,6 +71,13 @@ int x, int y, const char *format, ...)
 	va_list args;
 	int i;
 	int font_height = font->chars[0]->h;
+	int max_width = 0;
+	int n;
+	
+	if (font->monospaced) {
+		for (n=0; n < 256; n++)
+			if (font->char_width[n] > max_width) max_width = font->char_width[n];
+	}
 
 	va_start(args, format);
 	if ( vsprintf(buf, format, args) < 0 )
@@ -88,19 +95,51 @@ int x, int y, const char *format, ...)
 			pos.y += font_height + font->vspacing;
 		}
 		else {
-		SDL_Rect rect;
-		rect.x = rect.y = 0;
-		rect.w = font->char_width[c];
-		rect.h = font_height;
-		if ( SDL_BlitSurface(font->chars[c], &rect, surface, &pos) == -1 )
-		return(-1);
-		pos.x += font->char_width[c] + font->hspacing;
+			SDL_Rect rect;
+			rect.x = rect.y = 0;
+			rect.w = font->char_width[c];
+			rect.h = font_height;
+			if (font->monospaced) pos.x += (max_width - font->char_width[c]) / 2;  // on centre le caractère
+			if ( SDL_BlitSurface(font->chars[c], &rect, surface, &pos) == -1 )
+				return(-1);
+			
+			if (font->monospaced)	pos.x += max_width + font->hspacing - (max_width - font->char_width[c]) / 2;
+			else							pos.x += font->char_width[c] + font->hspacing;
 		}
 	}
 
 	return(0);
 }
 
+// la fonction originale ne prenait pas en compte la possibilité que dans le cas
+// monospaced, la largeur d'un caractère pouvait être différente de 8
+int nSDL_GetStringWidthCF(nSDL_Font *font, const char *s)
+{
+	if (!s[0]) return 0;
+	int width = 0;
+	int max_width = 0;
+	int max_char_width = 0;
+	int x;
+	if (font->monospaced) {
+		for (x=0; x < 256; x++)
+			if (font->char_width[x] > max_char_width) max_char_width = font->char_width[x];
+	}
+	
+	
+	do {
+		x = *s;
+		if ( x == '\n' || x == '\0' ) {
+			if ( width > max_width )
+			max_width = width;
+			width = 0;
+		}
+		else {
+			if (font->monospaced)	width += max_char_width + font->hspacing;
+			else							width += font->char_width[x] + font->hspacing;
+		}
+	} while ( *s++ );
+	return(max_width - font->hspacing);
+}
 
 
 // la fonction originale ne prenait pas en compte la hauteur de la police, qu'elle

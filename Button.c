@@ -141,7 +141,8 @@ int  ActivateButton(Widget *w)
 			else {
 				args->state = !args->state;
 				DrawButton(w);
-				wExecCallback(w, SIGNAL_CLICK);
+				if ((ok=wExecCallback(w, SIGNAL_CLICK)) != ACTION_CONTINUE)
+					return ok;
 				SDL_Flip(scr);
 				while (K_CLICK());
 			}

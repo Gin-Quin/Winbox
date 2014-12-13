@@ -11,5 +11,6 @@
 #include "AllWidgets.h"
 #include "EasyFiles.h"
 #include "nSDL_CustomFonts.h"
+#include "colored_strings.h"
 
 #endif

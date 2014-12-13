@@ -32,6 +32,7 @@ void wRequest_SetStr(Widget *w, const char *str);
 void wRequest_SetText(Widget *w, const char *t);
 char *wRequest_GetText(Widget *w);
 char *wRequest_GetAllocatedText(Widget *w);
+char *wRequest_GetTitle(Widget *w);
 void wRequest_SetMax(Widget *w, int max);
 
 // Méthodes spécifiques aux REQUEST_INT
